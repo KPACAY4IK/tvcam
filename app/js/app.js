@@ -142,11 +142,13 @@ function enterZoom() {
   var zImg = document.getElementById('zoom-img');
   var zLabel = document.getElementById('zoom-label');
   var zLoading = document.getElementById('zoom-loading');
+  var grid = document.getElementById('grid');
 
   zLabel.textContent = CAMERAS[selIdx].name;
   zImg.classList.remove('live');
   zLoading.textContent = 'Подключение...';
   zLoading.style.display = 'block';
+  grid.style.display = 'none';
   zoom.classList.remove('hidden');
 
   /* Останавливаем сетку */
@@ -161,6 +163,7 @@ function enterZoom() {
 function exitZoom() {
   zoomMode = false;
   document.getElementById('zoom').classList.add('hidden');
+  document.getElementById('grid').style.display = '';
   if (timers[0]) clearTimeout(timers[0]);
 
   /* Перезапускаем сетку */

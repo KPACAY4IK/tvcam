@@ -1,23 +1,25 @@
 'use strict';
 
 /* ============================================================
-   КАМЕРА — просмотр снимков с камеры
+   КАМЕРА — RTSP видео (Samsung AVPlay) + снимки (fallback)
    ============================================================ */
 
-var CAM_URL = 'http://192.168.8.139:8001/snapshot';
-var REFRESH_MS = 1000;  /* обновление каждую секунду */
-var RETRY_MS = 3000;    /* повтор при ошибке */
+var CAM_RTSP = 'rtsp://admin:@192.168.8.139:554/0/video0';
+var CAM_SNAPSHOT = 'http://192.168.8.139:8001/snapshot';
+var REFRESH_MS = 500;   /* снимок: обновление 2 раза в секунду */
+var RETRY_MS = 3000;
 
 var camEl = document.getElementById('cam');
 var statusEl = document.getElementById('cam-status');
 var errEl = document.getElementById('err');
 var errDetail = document.getElementById('err-detail');
 var hudClock = document.getElementById('hud-clock');
+var playerContainer = document.getElementById('player-container');
 
 var refreshTimer = null;
 var hudTimer = null;
 var failCount = 0;
-var running = true;
+var avplayActive = false;
 
 /* === Часы === */
 function tickClock() {
@@ -27,21 +29,107 @@ function tickClock() {
   hudClock.textContent = hh + ':' + mm;
 }
 
-/* === HUD показ/скрытие === */
+/* === HUD === */
 function showHud() {
   document.body.classList.add('show-hud');
   clearTimeout(hudTimer);
   hudTimer = setTimeout(function () {
     document.body.classList.remove('show-hud');
-  }, 5000);
+  }, 6000);
 }
 
-/* === Загрузка снимка === */
+/* ============================================================
+   ВАРИАНТ 1: Samsung AVPlay — нативный RTSP-плеер
+   ============================================================ */
+function tryAvplay() {
+  if (avplayActive) return;
+
+  /* Проверяем доступность webapis.avplay */
+  var player = null;
+  try {
+    if (window.webapis && webapis.avplay) {
+      player = webapis.avplay;
+    } else if (window.avplay) {
+      player = window.avplay;
+    }
+  } catch (e) {
+    player = null;
+  }
+
+  if (!player) {
+    console.log('[tvcam] AVPlay недоступен, пробую снимки');
+    startSnapshots();
+    return;
+  }
+
+  try {
+    statusEl.textContent = 'Подключение к видеопотоку...';
+    statusEl.style.display = 'block';
+
+    /* Инициализация плеера */
+    player.open(CAM_RTSP);
+    player.setDisplayRect(0, 0, window.innerWidth, window.innerHeight);
+    player.setDisplayMethod('PLAYER_DISPLAY_MODE_LETTER_BOX');
+    player.setListener({
+      onstreamcompleted: function () {
+        console.log('[tvcam] поток завершён, переподключаюсь');
+        avplayActive = false;
+        setTimeout(tryAvplay, 2000);
+      },
+      onerror: function (err) {
+        console.log('[tvcam] AVPlay ошибка: ' + JSON.stringify(err));
+        avplayActive = false;
+        startSnapshots();
+      }
+    });
+
+    player.prepareAsync(
+      function () {
+        player.play();
+        avplayActive = true;
+        statusEl.style.display = 'none';
+        errEl.classList.add('hidden');
+        playerContainer.style.display = 'block';
+        console.log('[tvcam] AVPlay играет!');
+      },
+      function (err) {
+        console.log('[tvcam] AVPlay prepare error: ' + JSON.stringify(err));
+        avplayActive = false;
+        startSnapshots();
+      }
+    );
+  } catch (e) {
+    console.log('[tvcam] AVPlay exception: ' + e.message);
+    avplayActive = false;
+    startSnapshots();
+  }
+}
+
+function stopAvplay() {
+  try {
+    var player = (window.webapis && webapis.avplay) ? webapis.avplay : window.avplay;
+    if (player && player.getState() !== 'NONE') {
+      player.stop();
+      player.close();
+    }
+  } catch (e) {}
+  avplayActive = false;
+  playerContainer.style.display = 'none';
+}
+
+/* ============================================================
+   ВАРИАНТ 2: Снимки (fallback) — работает в любом браузере
+   ============================================================ */
+function startSnapshots() {
+  if (avplayActive) return;
+  loadSnapshot();
+}
+
 function loadSnapshot() {
-  if (!running) return;
+  if (avplayActive) return;
 
   var img = new Image();
-  var url = CAM_URL + '?t=' + Date.now();
+  var url = CAM_SNAPSHOT + '?t=' + Date.now();
 
   img.onload = function () {
     failCount = 0;
@@ -49,19 +137,18 @@ function loadSnapshot() {
     camEl.classList.add('live');
     statusEl.style.display = 'none';
     errEl.classList.add('hidden');
-
     if (refreshTimer) clearTimeout(refreshTimer);
     refreshTimer = setTimeout(loadSnapshot, REFRESH_MS);
   };
 
   img.onerror = function () {
     failCount++;
-    if (failCount >= 3) {
+    if (failCount >= 5) {
       statusEl.style.display = 'none';
       errEl.classList.remove('hidden');
-      errDetail.textContent = 'Не удалось подключиться к ' + CAM_URL;
+      errDetail.textContent = 'Камера ' + CAM_SNAPSHOT + ' недоступна';
     } else {
-      statusEl.textContent = 'Переподключение...';
+      statusEl.textContent = 'Переподключение... (' + failCount + ')';
       statusEl.style.display = 'block';
     }
     if (refreshTimer) clearTimeout(refreshTimer);
@@ -71,53 +158,54 @@ function loadSnapshot() {
   img.src = url;
 }
 
-/* === Управление === */
+/* ============================================================
+   УПРАВЛЕНИЕ
+   ============================================================ */
+function doRefresh() {
+  failCount = 0;
+  errEl.classList.add('hidden');
+  if (avplayActive) {
+    stopAvplay();
+    tryAvplay();
+  } else {
+    camEl.classList.remove('live');
+    statusEl.textContent = 'Подключение...';
+    statusEl.style.display = 'block';
+    loadSnapshot();
+  }
+}
+
+function doBack() {
+  stopAvplay();
+  try { window.history.back(); } catch (e) {}
+  try { window.parent.postMessage('back', '*'); } catch (e) {}
+}
+
 function bindKeys() {
   document.addEventListener('keydown', function (e) {
     showHud();
     var k = e.keyCode || e.which;
 
-    /* Back / Escape → возврат */
     if (k === 10009 || k === 27 || k === 461) {
-      e.preventDefault();
-      if (e.key === 'GoBack' || k === 10009 || k === 461) {
-        try { window.history.back(); } catch (err) {}
-        try { window.parent.postMessage('back', '*'); } catch (err) {}
-      }
+      e.preventDefault(); e.stopPropagation();
+      doBack();
       return;
     }
-
-    /* OK / Enter → показать HUD */
     if (k === 13) {
       e.preventDefault();
       showHud();
       return;
     }
-
-    /* Красная → обновить */
     if (k === 403 || k === 82) {
       e.preventDefault();
-      failCount = 0;
-      errEl.classList.add('hidden');
-      statusEl.textContent = 'Подключение...';
-      statusEl.style.display = 'block';
-      camEl.classList.remove('live');
-      loadSnapshot();
-      return;
-    }
-
-    /* Синяя → переключить камеру (заглушка) */
-    if (k === 406 || k === 66) {
-      e.preventDefault();
+      doRefresh();
       return;
     }
   }, true);
 
-  /* Показ HUD при движении мыши / касании */
   document.addEventListener('mousemove', showHud);
   document.addEventListener('click', showHud);
 
-  /* Регистрация кнопок Samsung */
   try {
     if (window.tizen && tizen.tvinputdevice) {
       var keys = ['ColorF0Red', 'ColorF3Blue', 'Return', 'Exit', 'Enter'];
@@ -128,33 +216,17 @@ function bindKeys() {
   } catch (e) {}
 }
 
-/* === Кнопки на экране === */
-document.getElementById('btn-back').addEventListener('click', function () {
-  try { window.history.back(); } catch (e) {}
-  try { window.parent.postMessage('back', '*'); } catch (e) {}
-});
+document.getElementById('btn-back').addEventListener('click', doBack);
+document.getElementById('btn-refresh').addEventListener('click', doRefresh);
+document.getElementById('btn-retry').addEventListener('click', doRefresh);
 
-document.getElementById('btn-refresh').addEventListener('click', function () {
-  failCount = 0;
-  errEl.classList.add('hidden');
-  camEl.classList.remove('live');
-  statusEl.textContent = 'Подключение...';
-  statusEl.style.display = 'block';
-  loadSnapshot();
-});
-
-document.getElementById('btn-retry').addEventListener('click', function () {
-  failCount = 0;
-  errEl.classList.add('hidden');
-  statusEl.textContent = 'Подключение...';
-  statusEl.style.display = 'block';
-  camEl.classList.remove('live');
-  loadSnapshot();
-});
-
-/* === Старт === */
+/* ============================================================
+   СТАРТ — сначала пробуем RTSP, потом снимки
+   ============================================================ */
 tickClock();
 setInterval(tickClock, 1000);
 showHud();
-loadSnapshot();
 bindKeys();
+
+/* Пробуем AVPlay; если не выйдет — снимки */
+tryAvplay();

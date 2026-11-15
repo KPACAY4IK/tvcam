@@ -2,27 +2,47 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<title>Камера</title>
+<title>Камеры</title>
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-<div id="player-container"></div>
-<div id="cam-wrap">
-  <img id="cam" src="" alt="Камера">
-  <div id="cam-status">Подключение...</div>
+
+<!-- Сетка 3 камер -->
+<div id="grid">
+  <div class="cam-box selected" id="box-0">
+    <img class="cam-img" id="img-0" src="" alt="">
+    <div class="cam-loading">...</div>
+    <div class="cam-label">1 · Улица (ворота)</div>
+  </div>
+  <div class="cam-box" id="box-1">
+    <img class="cam-img" id="img-1" src="" alt="">
+    <div class="cam-loading">...</div>
+    <div class="cam-label">2 · Комната</div>
+  </div>
+  <div class="cam-box" id="box-2">
+    <img class="cam-img" id="img-2" src="" alt="">
+    <div class="cam-loading">...</div>
+    <div class="cam-label">3 · Парковка</div>
+  </div>
+</div>
+
+<!-- Увеличенный вид -->
+<div id="zoom" class="hidden">
+  <img id="zoom-img" src="" alt="">
+  <div id="zoom-loading">Подключение...</div>
+  <div id="zoom-label"></div>
+</div>
+
+<div id="vol-bar">
+  <span id="vol-icon">🔊</span>
+  <div id="vol-track"><div id="vol-fill"></div></div>
+  <span id="vol-val">80</span>
 </div>
 
 <div id="hud">
   <div id="hud-clock">--:--</div>
-  <div id="hud-label">Камера · Улица</div>
+  <div id="hud-hint">←→ выбрать · OK увеличить · 🔴 обновить · 🔊 громкость</div>
   <button id="btn-back">← Меню</button>
-  <button id="btn-refresh">⟳</button>
-</div>
-
-<div id="err" class="hidden">
-  <div id="err-msg">Камера недоступна</div>
-  <div id="err-detail"></div>
-  <button id="btn-retry">Повторить</button>
 </div>
 
 <script src="js/app.js"></script>

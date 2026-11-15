@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Камера</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="cam-wrap">
+  <img id="cam" src="" alt="Камера">
+  <div id="cam-status">Подключение...</div>
+</div>
+
+<div id="hud">
+  <div id="hud-clock">--:--</div>
+  <div id="hud-label">Камера · Улица</div>
+  <button id="btn-back">← Меню</button>
+  <button id="btn-refresh">⟳</button>
+</div>
+
+<div id="err" class="hidden">
+  <div id="err-msg">Камера недоступна</div>
+  <div id="err-detail"></div>
+  <button id="btn-retry">Повторить</button>
+</div>
+
+<script src="js/app.js"></script>
+</body>
+</html>

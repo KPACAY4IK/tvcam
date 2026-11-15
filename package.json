@@ -1,0 +1,12 @@
+{
+  "packageType": "app",
+  "name": "tvcam",
+  "appName": "Камера",
+  "appPath": "app/index.html",
+  "version": "1.0.0",
+  "icon": "icon.png",
+  "author": "KPACAY4IK",
+  "license": "MIT",
+  "keys": ["ColorF0Red", "ColorF3Blue"],
+  "serviceFile": "service.js"
+}
